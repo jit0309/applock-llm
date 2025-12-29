@@ -33,18 +33,10 @@ class UsageEventsMonitor(
     private val maxBufferSize = 100  // 최대 100개까지 모으기
     private val minBufferSize = 20   // 최소 20개 이상일 때만 저장
 
-    private val allowedPackages = setOf(
-        "com.example.applock",
-        "com.android.settings",
-        "com.sec.android.app.launcher",
-        "com.android.systemui",
-        "android"
-    )
-
-    private fun filterPackageName(pkg: String?): String? {
-        if (pkg == null) return null
-        return if (allowedPackages.contains(pkg)) pkg else null
-    }
+//    private fun filterPackageName(pkg: String?): String? {
+//        if (pkg == null) return null
+//        return if (allowedPackages.contains(pkg)) pkg else null
+//    }
 
     private fun getEventTypeName(eventType: Int): String {
         return when (eventType) {
@@ -67,6 +59,15 @@ class UsageEventsMonitor(
             20 -> "ROLLOVER_FOREGROUND_SERVICE"
             30 -> "NOTIFICATION_INTERRUPTION"
             else -> "TYPE_$eventType"
+        }
+    }
+
+    private fun getAppName(packageName: String): String {
+        return try {
+            val applicationInfo = packageManager.getApplicationInfo(packageName, 0)
+            packageManager.getApplicationLabel(applicationInfo).toString()
+        } catch (e: PackageManager.NameNotFoundException) {
+            packageName // 앱 이름을 찾을 수 없으면 패키지명 반환
         }
     }
 
@@ -120,11 +121,12 @@ class UsageEventsMonitor(
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
 
-            val filteredPackage = filterPackageName(event.packageName)
+//            val filteredPackage = filterPackageName(event.packageName)
 
             val eventData = UsageEventLogData(
                 idx = eventIndex++,
-                appPackage = filteredPackage ?: "",
+                appName = getAppName(event.packageName),  // ✅ 모든 패키지의 앱 이름 수집
+                appPackage = event.packageName,           // ✅ 모든 패키지 수집
                 eventType = getEventTypeName(event.eventType),
                 eventTime = event.timeStamp
             )
