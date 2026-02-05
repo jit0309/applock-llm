@@ -269,7 +269,7 @@ class MainActivity : AppCompatActivity() {
                     prefs.edit().putFloat("divide_rate", newRate).apply()
 
                     runOnUiThread {
-                        Toast.makeText(this@MainActivity, "변환 비율이 1/${newRate}로 설정되었습니다!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity,  "변환 비율이 1/${newRate.toString().removeSuffix(".0")}로 설정되었습니다!", Toast.LENGTH_SHORT).show()
                     }
                 }
 
