@@ -34,7 +34,10 @@ import java.util.Locale
 import kotlinx.coroutines.*
 import kotlin.math.roundToInt
 import android.widget.ProgressBar
+import android.graphics.Color
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.app.ActivityOptions
 
 class MainActivity : AppCompatActivity() {
     // UI 요소 선언
@@ -269,7 +272,7 @@ class MainActivity : AppCompatActivity() {
                     prefs.edit().putFloat("divide_rate", newRate).apply()
 
                     runOnUiThread {
-                        Toast.makeText(this@MainActivity,  "변환 비율이 1/${newRate.toString().removeSuffix(".0")}로 설정되었습니다!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "변환 비율이 1/${newRate}로 설정되었습니다!", Toast.LENGTH_SHORT).show()
                     }
                 }
 
@@ -329,15 +332,8 @@ class MainActivity : AppCompatActivity() {
                 val savedTime = prefs.getFloat("accumulated_points", 0.0f)
                 val savedDivideRate = prefs.getFloat("divide_rate", 3.0f)
                 //divide rate 저장
-                val service = AppLockMonitorService.getInstance()
-
-                if (service == null) {
-                    // 👉 Service가 아직 없을 때만 초기화 (앱 첫 실행 등)
-                    timer.updateDivideRate(savedDivideRate)
-                    timer.setInitialState(savedTime)
-                } else {
-                    Log.d("MainActivity", "Service already running - skip timer init")
-                }
+                timer.updateDivideRate(savedDivideRate)
+                timer.setInitialState(savedTime)
             }
 
             // 저장된 시간 복원
@@ -694,30 +690,8 @@ class MainActivity : AppCompatActivity() {
 //                showTimeStats(state)
 //            }
 
-            // 챗봇 버튼 클릭 리스너 추가
-            findViewById<Button>(R.id.ChatbotActivity).setOnClickListener {
-                try {
-                    Log.d("statelog", "Chatbot button clicked")
-                    // ChatbotActivity로 이동
-                    val intent = Intent(this, ChatbotActivity::class.java)
-                    startActivity(intent)
-                    Log.d("statelog", "Started ChatbotActivity")
-                } catch (e: Exception) {
-                    Log.e("statelog", "Error starting ChatbotActivity", e)
-                }
-            }
-
-            // 사용 기록 버튼 클릭 리스너 추가
-            findViewById<Button>(R.id.usageRecordButton).setOnClickListener {
-                try {
-                    Log.d("MainActivity", "Usage record button clicked")
-                    val intent = Intent(this, UsageRecordActivity::class.java)
-                    startActivity(intent)
-                    Log.d("MainActivity", "Started UsageRecordActivity")
-                } catch (e: Exception) {
-                    Log.e("MainActivity", "Error starting UsageRecordActivity", e)
-                }
-            }
+            // 바텀 네비게이션 설정
+            setupBottomNav()
 
             var initialAvailableTime: Float = 0f  // 포인트 사용 시작할 때의 가용 시간 저장
             var pointUsageStartTime: Long = 0L // 포인트 사용 시작 시간을 저장하기 위한 변수
@@ -1048,6 +1022,36 @@ class MainActivity : AppCompatActivity() {
             releaseWakeLock()
         }
     }
+
+    // 2) MainActivity 안의 setupBottomNav()를 아래로 통째로 교체
+    private fun setupBottomNav() {
+        // 잠금 탭 활성화 (현재 화면)
+        findViewById<ImageView>(R.id.navLockIcon)?.setColorFilter(Color.WHITE)
+        findViewById<TextView>(R.id.navLockText)?.setTextColor(Color.WHITE)
+
+        findViewById<LinearLayout>(R.id.navChat)?.setOnClickListener {
+            val intent = Intent(this, ChatbotActivity::class.java)
+            val options = ActivityOptions.makeCustomAnimation(
+                this,
+                R.anim.slide_in_right,
+                R.anim.slide_out_left
+            )
+            startActivity(intent, options.toBundle())
+            finish()
+        }
+
+        findViewById<LinearLayout>(R.id.navRecord)?.setOnClickListener {
+            val intent = Intent(this, UsageRecordActivity::class.java)
+            val options = ActivityOptions.makeCustomAnimation(
+                this,
+                R.anim.slide_in_right,
+                R.anim.slide_out_left
+            )
+            startActivity(intent, options.toBundle())
+            finish()
+        }
+    }
+
 
     override fun onResume() {
         super.onResume()
