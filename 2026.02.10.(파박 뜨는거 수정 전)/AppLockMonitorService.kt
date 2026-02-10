@@ -528,17 +528,9 @@ class AppLockMonitorService : AccessibilityService() {
                     // ✅ appBeforeLock이 있으면 홈 전환 체크 우회 (재진입 감지 우선)
                     val isReentryAttempt = (packageName == appBeforeLock)
 
-                    // ✅ 디버깅 로그 추가
-                    Log.d("StateLog", "━━━ TYPE_WINDOW_STATE_CHANGED ━━━")
-                    Log.d("StateLog", "packageName: $packageName")
-                    Log.d("StateLog", "appBeforeLock: $appBeforeLock")
-                    Log.d("StateLog", "isReentryAttempt: $isReentryAttempt")
-                    Log.d("StateLog", "isHomeTransition: $isHomeTransition")
-                    Log.d("StateLog", "timeSinceHomeTransition: ${currentTime - lastHomeTransitionTime}ms")
-
                     // 홈 화면 전환 후 일정 시간 내에 발생한 이벤트 무시 (예: 500ms)
-                    if (isHomeTransition && (currentTime - lastHomeTransitionTime) < 1000 && !isReentryAttempt) {
-                        Log.d("StateLog", "❌ 홈 전환 후 지속되는 이벤트 무시 (재진입 아님)")
+                    if (isHomeTransition && (currentTime - lastHomeTransitionTime) < 500 && !isReentryAttempt) {
+                        Log.d("StateLog", "홈 전환 후 지속되는 이벤트 무시")
                         return
                     }
 
@@ -707,26 +699,17 @@ class AppLockMonitorService : AccessibilityService() {
                         Log.d("StateLog", "CONTENT: handleLockCondition 호출 (isMonitoring=false)")
                         handleLockCondition()
                     } else if (packageName != currentActiveApp || packageName == appBeforeLock) {
+                        // ✅ 수정: 앱이 바뀌었거나, 잠금 전 앱으로 재진입하면 handleAppChange 호출
 
-                        // ✅ 잠금 화면 표시 중이면 스킵 (중복 방지)
-                        if (isLockScreenShowing) {
-                            Log.d("StateLog", "CONTENT: 잠금 화면 표시 중 - 스킵")
+                        if (packageName == appBeforeLock) {
+                            Log.d("StateLog", "CONTENT: 🔄 잠금 전 앱 재진입 감지! ($appBeforeLock)")
+                            appBeforeLock = null  // 사용 후 초기화
                         } else {
-                            // ✅ 수정: 앱이 바뀌었거나, 잠금 전 앱으로 재진입하면 handleAppChange 호출
-
-                            if (packageName == appBeforeLock) {
-                                Log.d("StateLog", "CONTENT: 🔄 잠금 전 앱 재진입 감지! ($appBeforeLock)")
-                                // ✅ appBeforeLock은 초기화하지 않음!
-                                // TYPE_WINDOW_STATE_CHANGED와 TYPE_WINDOW_CONTENT_CHANGED가
-                                // 연속으로 발생할 수 있어서 둘 다 감지되면 2번 표시됨
-                                // 초기화는 handleAppChange에서 다른 앱 전환 시에만 수행
-                            } else {
-                                Log.d("StateLog", "CONTENT: 앱 변경 감지 ($currentActiveApp -> $packageName)")
-                            }
-
-                            // 같은 앱 스크롤마다 호출하면 broadcast + Firebase write 폭발.
-                            handleAppChange(packageName, AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
+                            Log.d("StateLog", "CONTENT: 앱 변경 감지 ($currentActiveApp -> $packageName)")
                         }
+
+                        // 같은 앱 스크롤마다 호출하면 broadcast + Firebase write 폭발.
+                        handleAppChange(packageName, AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED)
                     } else {
                         Log.d("StateLog", "CONTENT: 같은 앱 ($packageName) - 스킵")
                     }
@@ -768,6 +751,12 @@ class AppLockMonitorService : AccessibilityService() {
             Log.d("StateLog", "앱 변경: $currentActiveApp -> $newApp, timerMode=${timer.getCurrentMode()}, isLockScreenShowing=$isLockScreenShowing")
             Log.d(TAG, "App changed: $currentActiveApp -> $newApp")
 
+            // ✅ 다른 앱으로 전환되면 appBeforeLock 초기화 (재진입 대기 종료)
+            if (newApp != appBeforeLock && appBeforeLock != null) {
+                Log.d("StateLog", "다른 앱 전환 감지 - appBeforeLock 초기화 (was: $appBeforeLock)")
+                appBeforeLock = null
+            }
+
             // 포인트 사용 모드에서 새로운 앱 실행시 이벤트 로깅
             if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
                 !isAccumulatingPoints && !EXCLUDED_PACKAGES.contains(newApp)) {
@@ -781,13 +770,6 @@ class AppLockMonitorService : AccessibilityService() {
             // 이전 앱 저장
             val prevApp = currentActiveApp
             currentActiveApp = newApp
-
-            // ✅ currentActiveApp 설정 시 appBeforeLock 초기화
-            // (재진입 대기 상태 종료)
-            if (appBeforeLock != null && currentActiveApp != null) {
-                Log.d("StateLog", "currentActiveApp 설정 → appBeforeLock 초기화 (was: $appBeforeLock)")
-                appBeforeLock = null
-            }
 
             updateLastActivityTime()
 
